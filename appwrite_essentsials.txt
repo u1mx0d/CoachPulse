@@ -1,0 +1,3 @@
+proje id : 6ad8dbe9000ffffaf24f
+
+API_ENDPOINT : https://fra.cloud.appwrite.io/v1
