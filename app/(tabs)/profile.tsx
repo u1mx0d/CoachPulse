@@ -3,13 +3,12 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { signOut } from '../../lib/appwrite';
+import { signOut, updateTargetCalories } from '../../lib/appwrite';
 import { useAuthStore } from '../../store/authStore';
 
 export default function Profile() {
   const router = useRouter();
   
-
   const { user, logout, setTargetCalories } = useAuthStore();
 
   // Hangi sekmenin açık olduğunu tutan state (null = ana menü)
@@ -25,7 +24,7 @@ export default function Profile() {
   const [dailyCalories, setDailyCalories] = useState<number | null>(null);
 
   // Gelişmiş Kalori Hesaplama Motoru
-  const calculateCalories = () => {
+  const calculateCalories = async () => {
     if (!age || !height || !weight) {
       alert("Lütfen yaş, boy ve kilo alanlarını doldurun.");
       return;
@@ -57,15 +56,26 @@ export default function Profile() {
     const roundedCalories = Math.round(finalCalories);
     setDailyCalories(roundedCalories);
     
-    
+    // 4. Zustand (Geçici Hafıza) Güncellemesi
     setTargetCalories(roundedCalories);
+
+    // 5. Bulut Veritabanı (Appwrite) Güncellemesi
+    if (user?.$id) {
+      try {
+        await updateTargetCalories(user.$id, roundedCalories);
+        alert("Hedef kalorin başarıyla hesaplandı ve profilin güncellendi!");
+      } catch (error) {
+        alert("Hesaplandı ancak veritabanına kaydedilirken bir hata oluştu.");
+      }
+    }
   };
 
+  // Çıkış Yapma Fonksiyonu
   const handleLogout = async () => {
     try {
       await signOut(); 
       logout();        
-      router.replace('/sign-in'); 
+      router.replace('/(auth)/sign-in'); 
     } catch (error) {
       alert("Çıkış yapılırken bir hata oluştu.");
     }

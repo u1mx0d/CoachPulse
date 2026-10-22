@@ -20,6 +20,10 @@ const appwriteConfig = {
 
   foodLibraryCollectionId : '6ad9edc70030f1916366',
 
+  profileCollectionId : '6ad9fc12002cd75967a0',
+
+
+
 };
 
 
@@ -35,12 +39,26 @@ export const databases = new Databases(client);
 
 export const createUser = async (email: string, password: string, name: string) => {
   try {
-    
     const newAccount = await account.create(ID.unique(), email, password, name);
-    return newAccount;
+    if (!newAccount) throw Error;
+
+    await signIn(email, password);
+    const currentUser = await account.get();
+
+    // YENİ: Kullanıcı kayıt olduğunda veritabanında profilini oluştur (Varsayılan 2400 kalori)
+    await databases.createDocument(
+      appwriteConfig.databaseId,
+      appwriteConfig.profileCollectionId,
+      ID.unique(),
+      {
+        userId: currentUser.$id,
+        targetCalories: 2400,
+      }
+    );
+
+    return currentUser;
   } catch (error: any) {
-    console.error("Kayıt Hatası:", error);
-    throw new Error(error.message); 
+    throw new Error(error.message);
   }
 };
 
@@ -251,5 +269,62 @@ export const deleteMeal = async (mealId: string) => {
   } catch (error: any) {
     console.log("Yemek silinirken hata:", error);
     throw new Error(error.message);
+  }
+};
+
+// --- PROFİL VE HEDEF KALORİ FONKSİYONLARI ---
+
+// Kullanıcının profilini getir (Hedef kalori için)
+export const getUserProfile = async (userId: string) => {
+  try {
+    const response = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.profileCollectionId,
+      [Query.equal('userId', userId)]
+    );
+    return response.documents[0]; // İlk profili döndür
+  } catch (error) {
+    console.log("Profil çekilirken hata:", error);
+    return null;
+  }
+};
+
+// Hedef kaloriyi veritabanında güncelle (Yoksa otomatik oluştur)
+export const updateTargetCalories = async (userId: string, newCalories: number) => {
+  try {
+    // 1. Önce kullanıcının profil dokümanını ara
+    const profiles = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.profileCollectionId,
+      [Query.equal('userId', userId)]
+    );
+
+    // 2. Eğer profil YOKSA (eski kullanıcıysa) -> Yeni Profil Yarat
+    if (profiles.documents.length === 0) {
+      const newProfile = await databases.createDocument(
+        appwriteConfig.databaseId,
+        appwriteConfig.profileCollectionId,
+        ID.unique(),
+        {
+          userId: userId,
+          targetCalories: newCalories
+        }
+      );
+      return newProfile;
+    } 
+    
+    // 3. Eğer profil VARSA -> Sadece Kaloriyi Güncelle
+    const userProfile = profiles.documents[0];
+    const response = await databases.updateDocument(
+      appwriteConfig.databaseId,
+      appwriteConfig.profileCollectionId,
+      userProfile.$id,
+      { targetCalories: newCalories }
+    );
+    
+    return response;
+  } catch (error) {
+    console.log("Kalori güncellenirken hata:", error);
+    throw error;
   }
 };

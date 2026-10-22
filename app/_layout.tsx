@@ -1,24 +1,28 @@
-import { Stack, useRouter } from 'expo-router'; // useRouter eklendi
+import { Stack, useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import "../global.css";
-import { getCurrentUser } from '../lib/appwrite';
+import { getCurrentUser, getUserProfile } from '../lib/appwrite';
 import { useAuthStore } from '../store/authStore';
 
 export default function RootLayout() {
-  const { setUser, setIsLogged } = useAuthStore();
-  const router = useRouter(); // Yönlendirme motorunu çağırıyoruz
+  const { setUser, setIsLogged, setTargetCalories } = useAuthStore(); // YENİ: setTargetCalories eklendi
+  const router = useRouter();
 
   useEffect(() => {
-    // Uygulama açıldığında veya yenilendiğinde aktif oturumu kontrol et
     getCurrentUser()
-      .then((user: any) => {
+      .then(async (user: any) => {
         if (user) {
-          // 1. Oturum VARSA hafızaya kaydet ve ANA SAYFAYA yönlendir
-          setUser(user);      
-          setIsLogged(true);  
-          router.replace('/(tabs)'); 
+          setUser(user);
+          setIsLogged(true);
+
+          // YENİ: Veritabanından profili çek ve kalori hedefini hafızaya yaz
+          const profile = await getUserProfile(user.$id);
+          if (profile) {
+            setTargetCalories(profile.targetCalories);
+          }
+
+          router.replace('/(tabs)');
         } else {
-          // 2. Oturum YOKSA GİRİŞ EKRANINA yönlendir
           setIsLogged(false);
           router.replace('/(auth)/sign-in');
         }
