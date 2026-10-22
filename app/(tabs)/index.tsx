@@ -1,46 +1,56 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getLatestWorkout, getUserCompletions } from '../../lib/appwrite';
+import { getLatestWorkout, getTodayMeals, getUserCompletions } from '../../lib/appwrite';
 import { useAuthStore } from '../../store/authStore';
 
 export default function Dashboard() {
-
- const { user, targetCalories } = useAuthStore(); 
+  const { user, targetCalories } = useAuthStore();
   const router = useRouter();
   
   const [latestWorkout, setLatestWorkout] = useState<any>(null);
   const [completions, setCompletions] = useState<any[]>([]);
+  const [todayMeals, setTodayMeals] = useState<any[]>([]); 
   const [isLoading, setIsLoading] = useState(true);
 
-  const consumedCalories = 0; // Besinler eklendikçe burası güncellenecek
-  const caloriePercent = Math.min(Math.round((consumedCalories / targetCalories) * 100), 100);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const workoutData = await getLatestWorkout();
-        setLatestWorkout(workoutData);
+  useFocusEffect(
+    useCallback(() => {
+      const fetchData = async () => {
+        try {
+          const workoutData = await getLatestWorkout();
+          setLatestWorkout(workoutData);
 
-        if (user?.$id) {
-          const userCompletions = await getUserCompletions(user.$id);
-          setCompletions(userCompletions);
+          if (user?.$id) {
+            const userCompletions = await getUserCompletions(user.$id);
+            setCompletions(userCompletions);
+            
+            // Bugünün yemeklerini çekiyoruz
+            const mealsData = await getTodayMeals(user.$id);
+            setTodayMeals(mealsData);
+          }
+        } catch (error) {
+          console.log(error);
+        } finally {
+          setIsLoading(false);
         }
-      } catch (error) {
-        console.log(error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+      };
 
-    fetchData();
-  }, [user]);
+      fetchData();
+    }, [user])
+  );
+
 
   const totalCompleted = completions.length;
   const totalCaloriesBurned = completions.reduce((acc, curr) => acc + curr.caloriesBurned, 0);
   const progressPercent = Math.min(Math.round((totalCompleted / 5) * 100), 100);
+
+
+  const consumedCalories = todayMeals.reduce((acc, curr) => acc + curr.calories, 0);
+  const caloriePercent = Math.min(Math.round((consumedCalories / targetCalories) * 100), 100);
+
 
   return (
     <SafeAreaView className="flex-1 bg-black">

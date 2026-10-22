@@ -16,6 +16,10 @@ const appwriteConfig = {
 
   completionCollectionId: '6ad8ffa80025e9a4fd2c',
 
+  mealCollectionId : '6ad9e9320015232898ae',
+
+  foodLibraryCollectionId : '6ad9edc70030f1916366',
+
 };
 
 
@@ -43,13 +47,20 @@ export const createUser = async (email: string, password: string, name: string) 
 // 1. Giriş Yapma (Oturum Açma) Fonksiyonu
 export const signIn = async (email: string, password: string) => {
   try {
-    // 1. Oturum aç
+    // 1. Eğer arka planda takılı kalmış aktif bir oturum varsa, önce onu temizle
+    try {
+      await account.deleteSession('current');
+    } catch (e) {
+      // Aktif oturum yoksa hata verir, umursama devam et.
+    }
+
+    // 2. Yeni oturumu oluştur
     const session = await account.createEmailPasswordSession(email, password);
     
-    // 2. Aktif kullanıcının detaylarını (ismini vb.) çek
+    // 3. Kullanıcı bilgilerini çek
     const currentUser = await account.get();
     
-    return currentUser; // Sadece session yerine ismi de içeren user objesini döndür
+    return currentUser;
   } catch (error: any) {
     throw new Error(error.message);
   }
@@ -158,5 +169,87 @@ export const getUserCompletions = async (userId: string) => {
   } catch (error: any) {
     console.log("Geçmiş çekilirken hata:", error);
     return [];
+  }
+};
+
+// --- BESLENME (MEALS) FONKSİYONLARI ---
+
+// 1. Yeni Yemek Ekleme
+export const addMeal = async (
+  userId: string, 
+  foodName: string, 
+  calories: number, 
+  mealType: string
+) => {
+  try {
+    // Bugünün tarihini 'YYYY-MM-DD' formatında alıyoruz
+    const today = new Date().toISOString().split('T')[0];
+
+    const response = await databases.createDocument(
+      appwriteConfig.databaseId,
+      appwriteConfig.mealCollectionId,
+      ID.unique(),
+      {
+        userId,
+        foodName,
+        calories,
+        mealType,
+        date: today,
+      }
+    );
+    return response;
+  } catch (error: any) {
+    console.log("Yemek eklenirken hata:", error);
+    throw new Error(error.message);
+  }
+};
+
+// 2. Bugünün Yemeklerini Getirme
+export const getTodayMeals = async (userId: string) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+
+    const response = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.mealCollectionId,
+      [
+        Query.equal('userId', userId),
+        Query.equal('date', today) // Sadece bugünün verilerini filtrele!
+      ]
+    );
+    return response.documents;
+  } catch (error: any) {
+    console.log("Bugünün yemekleri çekilirken hata:", error);
+    return [];
+  }
+};
+
+// --- HAZIR BESİN KÜTÜPHANESİ FONKSİYONU ---
+export const getFoodLibrary = async () => {
+  try {
+    const response = await databases.listDocuments(
+      appwriteConfig.databaseId,
+      appwriteConfig.foodLibraryCollectionId,
+      [Query.limit(100)] // Şimdilik ilk 100 besini çekiyoruz
+    );
+    return response.documents;
+  } catch (error: any) {
+    console.log("Besin kütüphanesi çekilirken hata:", error);
+    return [];
+  }
+};
+
+// 3. Yemek Silme
+export const deleteMeal = async (mealId: string) => {
+  try {
+    await databases.deleteDocument(
+      appwriteConfig.databaseId,
+      appwriteConfig.mealCollectionId,
+      mealId
+    );
+    return true;
+  } catch (error: any) {
+    console.log("Yemek silinirken hata:", error);
+    throw new Error(error.message);
   }
 };
